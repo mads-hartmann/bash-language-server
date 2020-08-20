@@ -6,17 +6,18 @@ import { promisify } from 'util'
 import * as LSP from 'vscode-languageserver'
 import * as Parser from 'web-tree-sitter'
 
-import { getGlobPattern } from './config'
+import * as config from './config'
 import { flattenArray, flattenObjectValues } from './util/flatten'
 import { getFilePaths } from './util/fs'
 import { getShebang, isBashShebang } from './util/shebang'
+import * as sourcing from './util/sourcing'
 import * as TreeSitterUtil from './util/tree-sitter'
 
 const readFileAsync = promisify(fs.readFile)
 
 type Kinds = { [type: string]: LSP.SymbolKind }
 
-type Declarations = { [name: string]: LSP.SymbolInformation[] }
+type Declarations = { [word: string]: LSP.SymbolInformation[] }
 type FileDeclarations = { [uri: string]: Declarations }
 
 type Trees = { [uri: string]: Parser.Tree }
@@ -46,7 +47,7 @@ export default class Analyzer {
     const analyzer = new Analyzer(parser)
 
     if (rootPath) {
-      const globPattern = getGlobPattern()
+      const globPattern = config.getGlobPattern()
       connection.console.log(
         `Analyzing files matching glob "${globPattern}" inside ${rootPath}`,
       )
@@ -105,6 +106,8 @@ export default class Analyzer {
 
   private uriToDeclarations: FileDeclarations = {}
 
+  private uriToSourcedUris: { [uri: string]: Set<string> } = {}
+
   private treeSitterTypeToLSPKind: Kinds = {
     // These keys are using underscores as that's the naming convention in tree-sitter.
     /* eslint-disable @typescript-eslint/camelcase */
@@ -119,15 +122,36 @@ export default class Analyzer {
   }
 
   /**
-   * Find all the locations where something named name has been defined.
+   * Find all the locations where something has been defined.
    */
-  public findDefinition(name: string): LSP.Location[] {
-    const symbols: LSP.SymbolInformation[] = []
-    Object.keys(this.uriToDeclarations).forEach(uri => {
-      const declarationNames = this.uriToDeclarations[uri][name] || []
-      declarationNames.forEach(d => symbols.push(d))
-    })
-    return symbols.map(s => s.location)
+  public findDefinition({
+    position,
+    uri,
+    word,
+  }: {
+    position?: { line: number; character: number }
+    uri: string
+    word: string
+  }): LSP.Location[] {
+    const fileDeclarations = this.getAllFileDeclarations({ uri })
+
+    const tree = this.uriToTreeSitterTrees[uri]
+    if (position && tree) {
+      // NOTE: when a word is a file path to a sourced file, we return a location to
+      // that file.
+      const sourcedLocation = sourcing.getSourcedLocation({ position, tree, uri, word })
+      if (sourcedLocation) {
+        return [sourcedLocation]
+      }
+    }
+
+    return Object.keys(fileDeclarations)
+      .reduce((symbols, uri) => {
+        const declarationNames = fileDeclarations[uri][word] || []
+        declarationNames.forEach(d => symbols.push(d))
+        return symbols
+      }, [] as LSP.SymbolInformation[])
+      .map(symbol => symbol.location)
   }
 
   /**
@@ -266,24 +290,26 @@ export default class Analyzer {
    */
   public findSymbolsMatchingWord({
     exactMatch,
+    uri,
     word,
   }: {
     exactMatch: boolean
+    uri: string
     word: string
   }): LSP.SymbolInformation[] {
-    const symbols: LSP.SymbolInformation[] = []
+    const fileDeclarations = this.getAllFileDeclarations({ uri })
 
-    Object.keys(this.uriToDeclarations).forEach(uri => {
-      const declarationsInFile = this.uriToDeclarations[uri] || {}
+    return Object.keys(fileDeclarations).reduce((symbols, uri) => {
+      const declarationsInFile = fileDeclarations[uri]
       Object.keys(declarationsInFile).map(name => {
         const match = exactMatch ? name === word : name.startsWith(word)
         if (match) {
           declarationsInFile[name].forEach(symbol => symbols.push(symbol))
         }
       })
-    })
 
-    return symbols
+      return symbols
+    }, [] as LSP.SymbolInformation[])
   }
 
   /**
@@ -298,13 +324,20 @@ export default class Analyzer {
 
     const tree = this.parser.parse(contents)
 
+    // TODO: would be nicer to save one map from uri to object containing all
+    // these fields.
     this.uriToTextDocument[uri] = document
     this.uriToTreeSitterTrees[uri] = tree
     this.uriToDeclarations[uri] = {}
     this.uriToFileContent[uri] = contents
+    this.uriToSourcedUris[uri] = sourcing.getSourcedUris({
+      fileContent: contents,
+      fileUri: uri,
+    })
 
     const problems: LSP.Diagnostic[] = []
 
+    // TODO: move this somewhere
     TreeSitterUtil.forEach(tree.rootNode, (n: Parser.SyntaxNode) => {
       if (n.type === 'ERROR') {
         problems.push(
@@ -322,8 +355,8 @@ export default class Analyzer {
           return
         }
 
-        const name = contents.slice(named.startIndex, named.endIndex)
-        const namedDeclarations = this.uriToDeclarations[uri][name] || []
+        const word = contents.slice(named.startIndex, named.endIndex)
+        const namedDeclarations = this.uriToDeclarations[uri][word] || []
 
         const parent = TreeSitterUtil.findParent(n, p => p.type === 'function_definition')
         const parentName =
@@ -336,14 +369,14 @@ export default class Analyzer {
 
         namedDeclarations.push(
           LSP.SymbolInformation.create(
-            name,
+            word,
             this.treeSitterTypeToLSPKind[n.type],
             TreeSitterUtil.range(n),
             uri,
             parentName,
           ),
         )
-        this.uriToDeclarations[uri][name] = namedDeclarations
+        this.uriToDeclarations[uri][word] = namedDeclarations
       }
     })
 
@@ -364,6 +397,29 @@ export default class Analyzer {
     findMissingNodes(tree.rootNode)
 
     return problems
+  }
+
+  public findAllSourcedUris({ uri }: { uri: string }): Set<string> {
+    const allSourcedUris = new Set<string>([])
+
+    const addSourcedFilesFromUri = (fromUri: string) => {
+      const sourcedUris = this.uriToSourcedUris[fromUri]
+
+      if (!sourcedUris) {
+        return
+      }
+
+      sourcedUris.forEach(sourcedUri => {
+        if (!allSourcedUris.has(sourcedUri)) {
+          allSourcedUris.add(sourcedUri)
+          addSourcedFilesFromUri(sourcedUri)
+        }
+      })
+    }
+
+    addSourcedFilesFromUri(uri)
+
+    return allSourcedUris
   }
 
   /**
@@ -434,21 +490,35 @@ export default class Analyzer {
     return null
   }
 
-  public getAllVariableSymbols(): LSP.SymbolInformation[] {
-    return this.getAllSymbols().filter(symbol => symbol.kind === LSP.SymbolKind.Variable)
+  public getAllVariableSymbols({ uri }: { uri: string }): LSP.SymbolInformation[] {
+    return this.getAllSymbols({ uri }).filter(
+      symbol => symbol.kind === LSP.SymbolKind.Variable,
+    )
   }
 
-  private getAllSymbols(): LSP.SymbolInformation[] {
-    // NOTE: this could be cached, it takes < 1 ms to generate for a project with 250 bash files...
-    const symbols: LSP.SymbolInformation[] = []
+  private getAllFileDeclarations({ uri }: { uri?: string } = {}): FileDeclarations {
+    const uris =
+      uri && config.getCompletionBasedOnImports()
+        ? [uri, ...Array.from(this.findAllSourcedUris({ uri }))]
+        : Object.keys(this.uriToDeclarations)
 
-    Object.keys(this.uriToDeclarations).forEach(uri => {
-      Object.keys(this.uriToDeclarations[uri]).forEach(name => {
+    return uris.reduce((fileDeclarations, uri) => {
+      fileDeclarations[uri] = this.uriToDeclarations[uri] || {}
+      return fileDeclarations
+    }, {} as FileDeclarations)
+  }
+
+  private getAllSymbols({ uri }: { uri?: string } = {}): LSP.SymbolInformation[] {
+    const fileDeclarations = this.getAllFileDeclarations({ uri })
+
+    return Object.keys(fileDeclarations).reduce((symbols, uri) => {
+      const declarationsInFile = fileDeclarations[uri]
+      Object.keys(declarationsInFile).forEach(name => {
         const declarationNames = this.uriToDeclarations[uri][name] || []
         declarationNames.forEach(d => symbols.push(d))
       })
-    })
 
-    return symbols
+      return symbols
+    }, [] as LSP.SymbolInformation[])
   }
 }

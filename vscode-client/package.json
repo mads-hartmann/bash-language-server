@@ -36,6 +36,11 @@
           "default": "**/*@(.sh|.inc|.bash|.command)",
           "description": "Glob pattern for finding and parsing shell script files."
         },
+        "bashIde.completionBasedOnImports": {
+          "type": "boolean",
+          "default": true,
+          "description": "Controls if symbols completion across files is based on parsing import/sourcing statements (i.e. 'source file.sh' or '. file.sh')."
+        },
         "bashIde.highlightParsingErrors": {
           "type": "boolean",
           "default": true,

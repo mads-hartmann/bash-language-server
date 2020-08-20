@@ -17,6 +17,15 @@ export function getGlobPattern(): string {
 export function getHighlightParsingError(): boolean {
   const { HIGHLIGHT_PARSING_ERRORS } = process.env
   return typeof HIGHLIGHT_PARSING_ERRORS !== 'undefined'
-    ? HIGHLIGHT_PARSING_ERRORS === 'true' || HIGHLIGHT_PARSING_ERRORS === '1'
+    ? toBoolean(HIGHLIGHT_PARSING_ERRORS)
     : true
 }
+
+export function getCompletionBasedOnImports(): boolean {
+  const { COMPLETION_BASED_ON_IMPORTS } = process.env
+  return typeof COMPLETION_BASED_ON_IMPORTS !== 'undefined'
+    ? toBoolean(COMPLETION_BASED_ON_IMPORTS)
+    : false
+}
+
+const toBoolean = (s: string): boolean => s === 'true' || s === '1'

@@ -81,3 +81,19 @@ describe('highlightParsingError', () => {
     expect(result).toEqual(false)
   })
 })
+
+describe('getCompletionBasedOnImports', () => {
+  it('default to false', () => {
+    process.env = {}
+    const result = config.getCompletionBasedOnImports()
+    expect(result).toEqual(false)
+  })
+
+  it('parses environment variable', () => {
+    process.env = {
+      COMPLETION_BASED_ON_IMPORTS: '1',
+    }
+    const result = config.getCompletionBasedOnImports()
+    expect(result).toEqual(true)
+  })
+})

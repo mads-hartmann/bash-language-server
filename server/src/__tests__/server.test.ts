@@ -464,9 +464,297 @@ Helper function to add a user",
       {} as any,
     )
 
-    // they are all variables
-    expect(Array.from(new Set(result.map((item: any) => item.kind)))).toEqual([
-      lsp.CompletionItemKind.Variable,
-    ])
+    expect(result).toMatchInlineSnapshot(`
+Array [
+  Object {
+    "data": Object {
+      "name": "BOLD",
+      "type": 3,
+    },
+    "documentation": undefined,
+    "kind": 6,
+    "label": "BOLD",
+  },
+  Object {
+    "data": Object {
+      "name": "my_var",
+      "type": 3,
+    },
+    "documentation": "Variable defined in ../comment-doc-on-hover.sh
+
+works for variables",
+    "kind": 6,
+    "label": "my_var",
+  },
+  Object {
+    "data": Object {
+      "name": "my_other_var",
+      "type": 3,
+    },
+    "documentation": "Variable defined in ../comment-doc-on-hover.sh",
+    "kind": 6,
+    "label": "my_other_var",
+  },
+  Object {
+    "data": Object {
+      "name": "RED",
+      "type": 3,
+    },
+    "documentation": "Variable defined in ../extension.inc",
+    "kind": 6,
+    "label": "RED",
+  },
+  Object {
+    "data": Object {
+      "name": "GREEN",
+      "type": 3,
+    },
+    "documentation": "Variable defined in ../extension.inc",
+    "kind": 6,
+    "label": "GREEN",
+  },
+  Object {
+    "data": Object {
+      "name": "BLUE",
+      "type": 3,
+    },
+    "documentation": "Variable defined in ../extension.inc",
+    "kind": 6,
+    "label": "BLUE",
+  },
+  Object {
+    "data": Object {
+      "name": "RESET",
+      "type": 3,
+    },
+    "documentation": "Variable defined in ../extension.inc",
+    "kind": 6,
+    "label": "RESET",
+  },
+  Object {
+    "data": Object {
+      "name": "ret",
+      "type": 3,
+    },
+    "documentation": "Variable defined in ../install.sh",
+    "kind": 6,
+    "label": "ret",
+  },
+  Object {
+    "data": Object {
+      "name": "configures",
+      "type": 3,
+    },
+    "documentation": "Variable defined in ../install.sh
+
+See what \\"npm_config_*\\" things there are in the env,
+and make them permanent.
+If this fails, it's not such a big deal.",
+    "kind": 6,
+    "label": "configures",
+  },
+  Object {
+    "data": Object {
+      "name": "npm_config_loglevel",
+      "type": 3,
+    },
+    "documentation": "Variable defined in ../install.sh",
+    "kind": 6,
+    "label": "npm_config_loglevel",
+  },
+  Object {
+    "data": Object {
+      "name": "node",
+      "type": 3,
+    },
+    "documentation": "Variable defined in ../install.sh
+
+make sure that node exists",
+    "kind": 6,
+    "label": "node",
+  },
+  Object {
+    "data": Object {
+      "name": "TMP",
+      "type": 3,
+    },
+    "documentation": "Variable defined in ../install.sh
+
+set the temp dir",
+    "kind": 6,
+    "label": "TMP",
+  },
+  Object {
+    "data": Object {
+      "name": "BACK",
+      "type": 3,
+    },
+    "documentation": "Variable defined in ../install.sh",
+    "kind": 6,
+    "label": "BACK",
+  },
+  Object {
+    "data": Object {
+      "name": "tar",
+      "type": 3,
+    },
+    "documentation": "Variable defined in ../install.sh",
+    "kind": 6,
+    "label": "tar",
+  },
+  Object {
+    "data": Object {
+      "name": "MAKE",
+      "type": 3,
+    },
+    "documentation": "Variable defined in ../install.sh
+
+XXX For some reason, make is building all the docs every time.  This
+is an annoying source of bugs. Figure out why this happens.",
+    "kind": 6,
+    "label": "MAKE",
+  },
+  Object {
+    "data": Object {
+      "name": "make",
+      "type": 3,
+    },
+    "documentation": "Variable defined in ../install.sh",
+    "kind": 6,
+    "label": "make",
+  },
+  Object {
+    "data": Object {
+      "name": "clean",
+      "type": 3,
+    },
+    "documentation": "Variable defined in ../install.sh",
+    "kind": 6,
+    "label": "clean",
+  },
+  Object {
+    "data": Object {
+      "name": "node_version",
+      "type": 3,
+    },
+    "documentation": "Variable defined in ../install.sh",
+    "kind": 6,
+    "label": "node_version",
+  },
+  Object {
+    "data": Object {
+      "name": "t",
+      "type": 3,
+    },
+    "documentation": "Variable defined in ../install.sh",
+    "kind": 6,
+    "label": "t",
+  },
+  Object {
+    "data": Object {
+      "name": "url",
+      "type": 3,
+    },
+    "documentation": "Variable defined in ../install.sh
+
+need to echo \\"\\" after, because Posix sed doesn't treat EOF
+as an implied end of line.",
+    "kind": 6,
+    "label": "url",
+  },
+  Object {
+    "data": Object {
+      "name": "ver",
+      "type": 3,
+    },
+    "documentation": "Variable defined in ../install.sh",
+    "kind": 6,
+    "label": "ver",
+  },
+  Object {
+    "data": Object {
+      "name": "isnpm10",
+      "type": 3,
+    },
+    "documentation": "Variable defined in ../install.sh",
+    "kind": 6,
+    "label": "isnpm10",
+  },
+  Object {
+    "data": Object {
+      "name": "NODE",
+      "type": 3,
+    },
+    "documentation": "Variable defined in ../install.sh",
+    "kind": 6,
+    "label": "NODE",
+  },
+  Object {
+    "data": Object {
+      "name": "USER",
+      "type": 3,
+    },
+    "documentation": "Variable defined in ../issue101.sh",
+    "kind": 6,
+    "label": "USER",
+  },
+  Object {
+    "data": Object {
+      "name": "PASSWORD",
+      "type": 3,
+    },
+    "documentation": "Variable defined in ../issue101.sh",
+    "kind": 6,
+    "label": "PASSWORD",
+  },
+  Object {
+    "data": Object {
+      "name": "COMMENTS",
+      "type": 3,
+    },
+    "documentation": "Variable defined in ../issue101.sh
+
+Having shifted twice, the rest is now comments ...",
+    "kind": 6,
+    "label": "COMMENTS",
+  },
+  Object {
+    "data": Object {
+      "name": "FOO",
+      "type": 3,
+    },
+    "documentation": "Variable defined in ../issue206.sh",
+    "kind": 6,
+    "label": "FOO",
+  },
+  Object {
+    "data": Object {
+      "name": "BAR",
+      "type": 3,
+    },
+    "documentation": "Variable defined in ../issue206.sh",
+    "kind": 6,
+    "label": "BAR",
+  },
+  Object {
+    "data": Object {
+      "name": "PATH_INPUT",
+      "type": 3,
+    },
+    "documentation": "Variable defined in ../missing-node.sh",
+    "kind": 6,
+    "label": "PATH_INPUT",
+  },
+  Object {
+    "data": Object {
+      "name": "PATH_OUTPUT",
+      "type": 3,
+    },
+    "documentation": "Variable defined in ../missing-node.sh",
+    "kind": 6,
+    "label": "PATH_OUTPUT",
+  },
+]
+`)
   })
 })

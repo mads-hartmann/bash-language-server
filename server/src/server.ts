@@ -240,6 +240,7 @@ export default class BashServer {
       const symbolDocumentation = deduplicateSymbols({
         symbols: this.analyzer.findSymbolsMatchingWord({
           exactMatch: true,
+          uri: currentUri,
           word,
         }),
         currentUri,
@@ -264,7 +265,11 @@ export default class BashServer {
     if (!word) {
       return null
     }
-    return this.analyzer.findDefinition(word)
+    return this.analyzer.findDefinition({
+      position: params.position,
+      uri: params.textDocument.uri,
+      word,
+    })
   }
 
   private onDocumentSymbol(params: LSP.DocumentSymbolParams): LSP.SymbolInformation[] {
@@ -337,9 +342,10 @@ export default class BashServer {
         ? []
         : this.getCompletionItemsForSymbols({
             symbols: shouldCompleteOnVariables
-              ? this.analyzer.getAllVariableSymbols()
+              ? this.analyzer.getAllVariableSymbols({ uri: currentUri })
               : this.analyzer.findSymbolsMatchingWord({
                   exactMatch: false,
+                  uri: currentUri,
                   word,
                 }),
             currentUri,

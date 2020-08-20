@@ -1,4 +1,4 @@
-import FIXTURES, { FIXTURE_FOLDER } from '../../../testing/fixtures'
+import FIXTURES, { FIXTURE_FOLDER, FIXTURE_URI } from '../../../testing/fixtures'
 import { getMockConnection } from '../../../testing/mocks'
 import Analyzer from '../analyser'
 import { initializeParser } from '../parser'
@@ -7,6 +7,9 @@ import * as fsUtil from '../util/fs'
 let analyzer: Analyzer
 
 const CURRENT_URI = 'dummy-uri.sh'
+
+// if you add a .sh file to testing/fixtures, update this value
+const FIXTURE_FILES_MATCHING_GLOB = 11
 
 beforeAll(async () => {
   const parser = await initializeParser()
@@ -33,17 +36,62 @@ describe('analyze', () => {
 })
 
 describe('findDefinition', () => {
-  it('returns empty list if parameter is not found', () => {
+  it('returns an empty list if word is not found', () => {
     analyzer.analyze(CURRENT_URI, FIXTURES.INSTALL)
-    const result = analyzer.findDefinition('foobar')
+    const result = analyzer.findDefinition({ uri: CURRENT_URI, word: 'foobar' })
     expect(result).toEqual([])
+  })
+
+  it('returns a location to a file if word is the path in a sourcing statement', () => {
+    analyzer.analyze(CURRENT_URI, FIXTURES.SOURCING)
+    const result = analyzer.findDefinition({
+      uri: CURRENT_URI,
+      word: './extension.inc',
+      position: { character: 10, line: 2 },
+    })
+    expect(result).toMatchInlineSnapshot(`
+      Array [
+        Object {
+          "range": Object {
+            "end": Object {
+              "character": 0,
+              "line": 0,
+            },
+            "start": Object {
+              "character": 0,
+              "line": 0,
+            },
+          },
+          "uri": "extension.inc",
+        },
+      ]
+    `)
   })
 
   it('returns a list of locations if parameter is found', () => {
     analyzer.analyze(CURRENT_URI, FIXTURES.INSTALL)
-    const result = analyzer.findDefinition('node_version')
+    const result = analyzer.findDefinition({
+      uri: CURRENT_URI,
+      word: 'node_version',
+    })
     expect(result).not.toEqual([])
-    expect(result).toMatchSnapshot()
+    expect(result).toMatchInlineSnapshot(`
+      Array [
+        Object {
+          "range": Object {
+            "end": Object {
+              "character": 37,
+              "line": 148,
+            },
+            "start": Object {
+              "character": 0,
+              "line": 148,
+            },
+          },
+          "uri": "dummy-uri.sh",
+        },
+      ]
+    `)
   })
 })
 
@@ -84,6 +132,50 @@ describe('findSymbolsForFile', () => {
   })
 })
 
+describe('findAllSourcedUris', () => {
+  it('returns references to sourced files', async () => {
+    const parser = await initializeParser()
+    const connection = getMockConnection()
+
+    const newAnalyzer = await Analyzer.fromRoot({
+      connection,
+      rootPath: FIXTURE_FOLDER,
+      parser,
+    })
+
+    const result = newAnalyzer.findAllSourcedUris({ uri: FIXTURE_URI.SOURCING })
+    expect(result).toEqual(
+      new Set([
+        `file://${FIXTURE_FOLDER}issue101.sh`,
+        `file://${FIXTURE_FOLDER}extension.inc`,
+      ]),
+    )
+  })
+
+  it('returns references to sourced files without file extension', async () => {
+    const parser = await initializeParser()
+    const connection = getMockConnection()
+
+    const newAnalyzer = await Analyzer.fromRoot({
+      connection,
+      rootPath: FIXTURE_FOLDER,
+      parser,
+    })
+
+    // Parse the file without extension
+    newAnalyzer.analyze(FIXTURE_URI.MISSING_EXTENSION, FIXTURES.MISSING_EXTENSION)
+
+    const result = newAnalyzer.findAllSourcedUris({ uri: FIXTURE_URI.MISSING_EXTENSION })
+    expect(result).toEqual(
+      new Set([
+        `file://${FIXTURE_FOLDER}extension.inc`,
+        `file://${FIXTURE_FOLDER}issue101.sh`,
+        `file://${FIXTURE_FOLDER}sourcing.sh`,
+      ]),
+    )
+  })
+})
+
 describe('wordAtPoint', () => {
   it('returns current word at a given point', () => {
     analyzer.analyze(CURRENT_URI, FIXTURES.INSTALL)
@@ -112,13 +204,23 @@ describe('wordAtPoint', () => {
   })
 })
 
-describe('findSymbolCompletions', () => {
-  it('return a list of symbols across the workspace', () => {
-    analyzer.analyze('install.sh', FIXTURES.INSTALL)
-    analyzer.analyze('sourcing-sh', FIXTURES.SOURCING)
+describe('findSymbolsMatchingWord', () => {
+  it('return a list of symbols across the workspace (with default config)', async () => {
+    const parser = await initializeParser()
+    const connection = getMockConnection()
+
+    const analyzer = await Analyzer.fromRoot({
+      connection,
+      rootPath: FIXTURE_FOLDER,
+      parser,
+    })
 
     expect(
-      analyzer.findSymbolsMatchingWord({ word: 'npm_config_logl', exactMatch: false }),
+      analyzer.findSymbolsMatchingWord({
+        word: 'npm_config_logl',
+        uri: FIXTURE_URI.INSTALL,
+        exactMatch: false,
+      }),
     ).toMatchInlineSnapshot(`
       Array [
         Object {
@@ -134,7 +236,7 @@ describe('findSymbolCompletions', () => {
                 "line": 40,
               },
             },
-            "uri": "dummy-uri.sh",
+            "uri": "file://${FIXTURE_FOLDER}install.sh",
           },
           "name": "npm_config_loglevel",
         },
@@ -151,41 +253,7 @@ describe('findSymbolCompletions', () => {
                 "line": 48,
               },
             },
-            "uri": "dummy-uri.sh",
-          },
-          "name": "npm_config_loglevel",
-        },
-        Object {
-          "kind": 13,
-          "location": Object {
-            "range": Object {
-              "end": Object {
-                "character": 27,
-                "line": 40,
-              },
-              "start": Object {
-                "character": 0,
-                "line": 40,
-              },
-            },
-            "uri": "install.sh",
-          },
-          "name": "npm_config_loglevel",
-        },
-        Object {
-          "kind": 13,
-          "location": Object {
-            "range": Object {
-              "end": Object {
-                "character": 31,
-                "line": 48,
-              },
-              "start": Object {
-                "character": 2,
-                "line": 48,
-              },
-            },
-            "uri": "install.sh",
+            "uri": "file://${FIXTURE_FOLDER}install.sh",
           },
           "name": "npm_config_loglevel",
         },
@@ -193,12 +261,119 @@ describe('findSymbolCompletions', () => {
     `)
 
     expect(
-      analyzer.findSymbolsMatchingWord({ word: 'xxxxxxxx', exactMatch: false }),
+      analyzer.findSymbolsMatchingWord({
+        word: 'xxxxxxxx',
+        uri: FIXTURE_URI.INSTALL,
+        exactMatch: false,
+      }),
     ).toMatchInlineSnapshot(`Array []`)
 
     expect(
-      analyzer.findSymbolsMatchingWord({ word: 'BLU', exactMatch: false }),
+      analyzer.findSymbolsMatchingWord({
+        word: 'BLU',
+        uri: FIXTURE_URI.INSTALL,
+        exactMatch: false,
+      }),
+    ).toMatchInlineSnapshot(`
+Array [
+  Object {
+    "kind": 13,
+    "location": Object {
+      "range": Object {
+        "end": Object {
+          "character": 19,
+          "line": 6,
+        },
+        "start": Object {
+          "character": 0,
+          "line": 6,
+        },
+      },
+      "uri": "file://${FIXTURE_FOLDER}extension.inc",
+    },
+    "name": "BLUE",
+  },
+]
+`)
+
+    expect(
+      analyzer.findSymbolsMatchingWord({
+        word: 'BLU',
+        uri: FIXTURE_URI.SOURCING,
+        exactMatch: false,
+      }),
+    ).toMatchInlineSnapshot(`
+Array [
+  Object {
+    "kind": 13,
+    "location": Object {
+      "range": Object {
+        "end": Object {
+          "character": 19,
+          "line": 6,
+        },
+        "start": Object {
+          "character": 0,
+          "line": 6,
+        },
+      },
+      "uri": "file://${FIXTURE_FOLDER}extension.inc",
+    },
+    "name": "BLUE",
+  },
+]
+`)
+  })
+
+  it('return a list of symbols accessible to the uri (when config.COMPLETION_BASED_ON_IMPORTS is true)', async () => {
+    process.env = {
+      COMPLETION_BASED_ON_IMPORTS: '1',
+    }
+
+    const parser = await initializeParser()
+    const connection = getMockConnection()
+
+    const analyzer = await Analyzer.fromRoot({
+      connection,
+      rootPath: FIXTURE_FOLDER,
+      parser,
+    })
+
+    expect(
+      analyzer.findSymbolsMatchingWord({
+        word: 'BLU',
+        uri: FIXTURE_URI.INSTALL,
+        exactMatch: false,
+      }),
     ).toMatchInlineSnapshot(`Array []`)
+
+    expect(
+      analyzer.findSymbolsMatchingWord({
+        word: 'BLU',
+        uri: FIXTURE_URI.SOURCING,
+        exactMatch: false,
+      }),
+    ).toMatchInlineSnapshot(`
+Array [
+  Object {
+    "kind": 13,
+    "location": Object {
+      "range": Object {
+        "end": Object {
+          "character": 19,
+          "line": 6,
+        },
+        "start": Object {
+          "character": 0,
+          "line": 6,
+        },
+      },
+      "uri": "file://${FIXTURE_FOLDER}extension.inc",
+    },
+    "name": "BLUE",
+  },
+]
+`)
   })
 })
 
@@ -248,9 +423,6 @@ describe('fromRoot', () => {
     expect(newAnalyzer).toBeDefined()
 
     expect(connection.window.showWarningMessage).not.toHaveBeenCalled()
-
-    // if you add a .sh file to testing/fixtures, update this value
-    const FIXTURE_FILES_MATCHING_GLOB = 11
 
     // Intro, stats on glob, one file skipped due to shebang, and outro
     const LOG_LINES = FIXTURE_FILES_MATCHING_GLOB + 4
