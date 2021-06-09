@@ -226,10 +226,14 @@ export default class BashServer {
       }
     }
 
+    const symbolsMatchingWord = this.analyzer.findSymbolsMatchingWord({
+      exactMatch: true,
+      word,
+    })
     if (
       ReservedWords.isReservedWord(word) ||
       Builtins.isBuiltin(word) ||
-      this.executables.isExecutableOnPATH(word)
+      (this.executables.isExecutableOnPATH(word) && symbolsMatchingWord.length == 0)
     ) {
       const shellDocumentation = await getShellDocumentation({ word })
       if (shellDocumentation) {
@@ -238,10 +242,7 @@ export default class BashServer {
       }
     } else {
       const symbolDocumentation = deduplicateSymbols({
-        symbols: this.analyzer.findSymbolsMatchingWord({
-          exactMatch: true,
-          word,
-        }),
+        symbols: symbolsMatchingWord,
         currentUri,
       })
         // do not return hover referencing for the current line
